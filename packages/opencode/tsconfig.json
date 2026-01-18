@@ -5,9 +5,11 @@
     "jsx": "preserve",
     "jsxImportSource": "@opentui/solid",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": [],
+    "types": ["bun", "node"],
     "noUncheckedIndexedAccess": false,
     "customConditions": ["browser"],
+    "esModuleInterop": true,
+    "module": "ESNext",
     "paths": {
       "@/*": ["./src/*"],
       "@tui/*": ["./src/cli/cmd/tui/*"]
