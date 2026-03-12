@@ -38,9 +38,9 @@ jobs:
           npm version ${{ github.event.inputs.version }} --no-git-tag-version
 
       - name: Build plugin
-        run: bun run --filter opencode-plugin build
+        run: bun run --filter @opencode-ai/plugin build
 
       - name: Publish to npm
-        run: bun run --filter opencode-plugin publish
+        run: bun run --filter @opencode-ai/plugin publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
