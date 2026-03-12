@@ -1,5 +1,7 @@
 name: "sync-zed-extension"
 
+if: github.repository == 'anomalyco/opencode'
+
 on:
   workflow_dispatch:
   release:

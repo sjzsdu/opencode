@@ -1,5 +1,7 @@
 name: release-github-action
 
+if: github.repository == 'anomalyco/opencode'
+
 on:
   push:
     branches:

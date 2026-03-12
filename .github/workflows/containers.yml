@@ -1,5 +1,7 @@
 name: containers
 
+if: github.repository == 'anomalyco/opencode'
+
 on:
   push:
     branches:

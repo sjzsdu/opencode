@@ -1,5 +1,7 @@
 name: publish-github-action
 
+if: github.repository == 'anomalyco/opencode'
+
 on:
   workflow_dispatch:
   push:

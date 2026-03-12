@@ -1,0 +1,34 @@
+name: publish-plugin
+
+on:
+  push:
+    tags:
+      - "plugin-v*"
+    paths:
+      - packages/plugin/**
+
+jobs:
+  publish-plugin:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build plugin
+        run: bun run --filter opencode-plugin build
+
+      - name: Publish to npm
+        run: bun run --filter opencode-plugin publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

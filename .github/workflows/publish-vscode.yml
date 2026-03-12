@@ -1,5 +1,7 @@
 name: publish-vscode
 
+if: github.repository == 'anomalyco/opencode'
+
 on:
   workflow_dispatch:
   push:

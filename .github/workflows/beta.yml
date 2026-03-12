@@ -1,5 +1,7 @@
 name: beta
 
+if: github.repository == 'anomalyco/opencode'
+
 on:
   workflow_dispatch:
   schedule:
