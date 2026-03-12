@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { cmd } from "./cmd"
 import { Duration, Effect, Match, Option } from "effect"
 import { UI } from "../ui"

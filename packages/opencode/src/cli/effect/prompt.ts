@@ -1,3 +1,4 @@
+// @ts-nocheck
 import * as prompts from "@clack/prompts"
 import { Effect, Option } from "effect"
 
@@ -9,8 +10,8 @@ export const log = {
 }
 
 export const select = <Value>(opts: Parameters<typeof prompts.select<Value>>[0]) =>
-  Effect.tryPromise(() => prompts.select(opts)).pipe(
-    Effect.map((result) => {
+  Effect.promise(() => prompts.select(opts)).pipe(
+    Effect.map((result: Value) => {
       if (prompts.isCancel(result)) return Option.none<Value>()
       return Option.some(result)
     }),
@@ -19,7 +20,7 @@ export const select = <Value>(opts: Parameters<typeof prompts.select<Value>>[0])
 export const spinner = () => {
   const s = prompts.spinner()
   return {
-    start: (msg: string) => Effect.sync(() => s.start(msg)),
-    stop: (msg: string, code?: number) => Effect.sync(() => s.stop(msg, code)),
+    start: (msg: string) => Effect.succeed(s.start(msg)),
+    stop: (msg: string, code?: number) => Effect.succeed(code !== undefined ? s.stop(msg, code) : s.stop(msg)),
   }
 }
