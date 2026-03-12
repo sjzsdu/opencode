@@ -1,7 +1,5 @@
 name: release-github-action
 
-if: github.repository == 'anomalyco/opencode'
-
 on:
   push:
     branches:
@@ -16,6 +14,7 @@ permissions:
 
 jobs:
   release:
+    if: github.repository == 'anomalyco/opencode'
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@v4

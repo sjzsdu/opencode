@@ -16,6 +16,7 @@ permissions:
 
 jobs:
   unit:
+    if: github.repository == 'anomalyco/opencode'
     name: unit (${{ matrix.settings.name }})
     strategy:
       fail-fast: false

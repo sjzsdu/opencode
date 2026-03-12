@@ -1,7 +1,5 @@
 name: sign-cli
 
-if: github.repository == 'anomalyco/opencode'
-
 on:
   push:
     branches:
