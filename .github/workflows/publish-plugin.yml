@@ -1,6 +1,12 @@
 name: publish-plugin
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (e.g., 1.2.24.1)"
+        required: true
+        type: string
   push:
     tags:
       - "plugin-v*"
@@ -24,6 +30,12 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+
+      - name: Set version from input
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cd packages/plugin
+          npm version ${{ github.event.inputs.version }} --no-git-tag-version
 
       - name: Build plugin
         run: bun run --filter opencode-plugin build
