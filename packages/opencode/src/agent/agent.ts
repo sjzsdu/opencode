@@ -19,8 +19,51 @@ import { Global } from "@/global"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
+import type { Agent as SdkAgent } from "@opencode-ai/sdk/v2"
 
 export namespace Agent {
+  // Dynamic agent registry for runtime-added agents
+  const registry = new Map<string, Info>()
+
+  export function register(agent: Info | SdkAgent) {
+    const isSdkAgent = "native" in agent
+    const internalAgent: Info = isSdkAgent
+      ? {
+          name: agent.name,
+          description: agent.description,
+          mode: agent.mode,
+          native: agent.native,
+          hidden: agent.hidden,
+          topP: agent.topP,
+          temperature: agent.temperature,
+          color: agent.color,
+          permission: agent.permission as unknown as Info["permission"],
+          model: agent.model,
+          variant: agent.variant,
+          prompt: agent.prompt,
+          options: agent.options,
+          steps: agent.steps,
+        }
+      : (agent as Info)
+
+    if (!internalAgent.name || typeof internalAgent.name !== "string" || !internalAgent.name.trim()) {
+      throw new Error("Agent name is required and must be a non-empty string")
+    }
+
+    if (registry.has(internalAgent.name)) {
+      console.warn(`Agent "${internalAgent.name}" already registered, overwriting`)
+    }
+    registry.set(internalAgent.name, internalAgent)
+  }
+
+  export function unregister(name: string) {
+    if (!registry.has(name)) {
+      console.warn(`Agent "${name}" not found in registry`)
+      return
+    }
+    registry.delete(name)
+  }
+
   export const Info = z
     .object({
       name: z.string(),
@@ -250,14 +293,24 @@ export namespace Agent {
     return result
   })
 
+  // Helper to get merged state (base + registry)
+  async function mergedState() {
+    const base = await state()
+    const merged = { ...base }
+    for (const [name, agent] of registry) {
+      merged[name] = agent
+    }
+    return merged
+  }
+
   export async function get(agent: string) {
-    return state().then((x) => x[agent])
+    return mergedState().then((x) => x[agent])
   }
 
   export async function list() {
     const cfg = await Config.get()
     return pipe(
-      await state(),
+      await mergedState(),
       values(),
       sortBy([(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === "build"), "desc"]),
     )
@@ -265,7 +318,7 @@ export namespace Agent {
 
   export async function defaultAgent() {
     const cfg = await Config.get()
-    const agents = await state()
+    const agents = await mergedState()
 
     if (cfg.default_agent) {
       const agent = agents[cfg.default_agent]

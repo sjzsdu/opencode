@@ -30,6 +30,19 @@ export type PluginInput = {
   worktree: string
   serverUrl: URL
   $: BunShell
+  /**
+   * Dynamically register a new agent.
+   * The agent will be available immediately without restarting.
+   */
+  registerAgent: (agent: import("@opencode-ai/sdk/v2").Agent) => Promise<void>
+  /**
+   * Unregister a dynamically added agent.
+   */
+  unregisterAgent: (name: string) => Promise<void>
+  /**
+   * Get the list of currently registered agents.
+   */
+  listAgents: () => Promise<import("@opencode-ai/sdk/v2").Agent[]>
 }
 
 export type Plugin = (input: PluginInput) => Promise<Hooks>
@@ -231,4 +244,18 @@ export interface Hooks {
    * Modify tool definitions (description and parameters) sent to LLM
    */
   "tool.definition"?: (input: { toolID: string }, output: { description: string; parameters: any }) => Promise<void>
+  /**
+   * Dynamically register a new agent at runtime.
+   * The agent will be available immediately without restarting.
+   */
+  "agent.register"?: (input: { agent: import("@opencode-ai/sdk/v2").Agent }) => Promise<void>
+  /**
+   * Unregister a dynamically added agent.
+   */
+  "agent.unregister"?: (input: { name: string }) => Promise<void>
+  /**
+   * Get the list of currently registered agents.
+   * Useful for plugins to discover existing agents.
+   */
+  "agent.list"?: () => Promise<import("@opencode-ai/sdk/v2").Agent[]>
 }

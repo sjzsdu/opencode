@@ -3,6 +3,7 @@ import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
 import { createOpencodeClient } from "@opencode-ai/sdk"
+import type { Agent as SdkAgent } from "@opencode-ai/sdk/v2"
 import { Server } from "../server/server"
 import { BunProc } from "../bun"
 import { Instance } from "../project/instance"
@@ -12,6 +13,7 @@ import { Session } from "../session"
 import { NamedError } from "@opencode-ai/util/error"
 import { CopilotAuthPlugin } from "./copilot"
 import { gitlabAuthPlugin as GitlabAuthPlugin } from "@gitlab/opencode-gitlab-auth"
+import { Agent } from "../agent/agent"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -38,6 +40,33 @@ export namespace Plugin {
         return Server.url ?? new URL("http://localhost:4096")
       },
       $: Bun.$,
+      registerAgent: async (agent) => {
+        await Plugin.triggerAgentRegister({ agent })
+      },
+      unregisterAgent: async (name) => {
+        await Plugin.triggerAgentUnregister({ name })
+      },
+      listAgents: async () => {
+        const agents = await Agent.list()
+        return agents.map(
+          (a): SdkAgent => ({
+            name: a.name,
+            description: a.description,
+            mode: a.mode,
+            native: a.native,
+            hidden: a.hidden,
+            topP: a.topP,
+            temperature: a.temperature,
+            color: a.color,
+            permission: a.permission as unknown as SdkAgent["permission"],
+            model: a.model,
+            variant: a.variant,
+            prompt: a.prompt,
+            options: a.options,
+            steps: a.steps,
+          }),
+        )
+      },
     }
 
     for (const plugin of INTERNAL_PLUGINS) {
@@ -119,6 +148,32 @@ export namespace Plugin {
       await fn(input, output)
     }
     return output
+  }
+
+  // Special trigger for agent registration hooks (no output needed)
+  export async function triggerAgentRegister(input: { agent: any }) {
+    // First register the agent in the Agent registry
+    Agent.register(input.agent)
+    // Then notify all plugins
+    const hooks = await state().then((x) => x.hooks)
+    try {
+      for (const hook of hooks) {
+        await hook["agent.register"]?.(input)
+      }
+    } catch (error) {
+      Agent.unregister(input.agent.name)
+      throw error
+    }
+  }
+
+  export async function triggerAgentUnregister(input: { name: string }) {
+    // First unregister from the Agent registry
+    Agent.unregister(input.name)
+    // Then notify all plugins
+    const hooks = await state().then((x) => x.hooks)
+    for (const hook of hooks) {
+      await hook["agent.unregister"]?.(input)
+    }
   }
 
   export async function list() {
