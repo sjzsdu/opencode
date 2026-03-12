@@ -8,7 +8,7 @@
     "typecheck": "tsgo --noEmit",
     "build": "tsc",
     "prepublishOnly": "bun run build",
-    "publish": "ver=$(npm pkg get version | tr -d '\"') && npm pkg set name=opencode-plugin version=$ver.1 && npm publish --access public && npm pkg set name=@opencode-ai/plugin"
+    "publish": "ver=$(npm pkg get version | tr -d '\"') && npm pkg set name=sjz-opencode-plugin version=$ver.1 && npm publish --access public && npm pkg set name=@opencode-ai/plugin"
   },
   "exports": {
     ".": "./src/index.ts",
