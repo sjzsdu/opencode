@@ -7,7 +7,6 @@
   "scripts": {
     "typecheck": "tsgo --noEmit",
     "build": "tsc",
-    "prepublishOnly": "bun run build",
     "publish": "bun ./script/publish.ts"
   },
   "exports": {
