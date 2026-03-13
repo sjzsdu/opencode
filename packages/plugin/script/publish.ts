@@ -10,7 +10,8 @@ const pkg = await Bun.file("package.json").json()
 const original = JSON.parse(JSON.stringify(pkg))
 
 pkg.name = "sjz-opencode-sdk"
-pkg.version = pkg.version + "-fork.1"
+const [major, minor, patch] = pkg.version.split(".")
+pkg.version = `${major}.${minor}.${patch}1`
 
 for (const [key, value] of Object.entries(pkg.exports as Record<string, string>)) {
   const file = value.replace("./src/", "./dist/").replace(".ts", "")
@@ -21,5 +22,5 @@ for (const [key, value] of Object.entries(pkg.exports as Record<string, string>)
 }
 
 await Bun.write("package.json", JSON.stringify(pkg, null, 2))
-await $`npm publish --access public --tag latest`
+await $`npm publish --access public`
 await Bun.write("package.json", JSON.stringify(original, null, 2))
