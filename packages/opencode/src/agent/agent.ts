@@ -51,6 +51,33 @@ export namespace Agent {
     })
   export type Info = z.infer<typeof Info>
 
+  export type Input = {
+    name: string
+    description?: string
+    mode?: Info["mode"]
+    prompt?: string
+    options?: Record<string, unknown>
+  }
+
+  const registry = new Map<string, Info>()
+
+  export function register(agent: Input) {
+    if (!agent.name.trim()) throw new Error("Agent name is required")
+    registry.set(agent.name, {
+      name: agent.name,
+      description: agent.description,
+      mode: agent.mode ?? "subagent",
+      prompt: agent.prompt,
+      options: agent.options ?? {},
+      permission: Permission.fromConfig({ "*": "allow" }),
+      native: false,
+    })
+  }
+
+  export function unregister(name: string) {
+    registry.delete(name)
+  }
+
   export interface Interface {
     readonly get: (agent: string) => Effect.Effect<Agent.Info>
     readonly list: () => Effect.Effect<Agent.Info[]>
@@ -279,13 +306,14 @@ export namespace Agent {
           }
 
           const get = Effect.fnUntraced(function* (agent: string) {
-            return agents[agent]
+            return registry.get(agent) ?? agents[agent]
           })
 
           const list = Effect.fnUntraced(function* () {
             const cfg = yield* config.get()
+            const all = { ...agents, ...Object.fromEntries(registry) }
             return pipe(
-              agents,
+              all,
               values(),
               sortBy(
                 [(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === "build"), "desc"],
@@ -296,14 +324,15 @@ export namespace Agent {
 
           const defaultAgent = Effect.fnUntraced(function* () {
             const c = yield* config.get()
+            const all = { ...agents, ...Object.fromEntries(registry) }
             if (c.default_agent) {
-              const agent = agents[c.default_agent]
+              const agent = all[c.default_agent]
               if (!agent) throw new Error(`default agent "${c.default_agent}" not found`)
               if (agent.mode === "subagent") throw new Error(`default agent "${c.default_agent}" is a subagent`)
               if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
               return agent.name
             }
-            const visible = Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true)
+            const visible = Object.values(all).find((a) => a.mode !== "subagent" && a.hidden !== true)
             if (!visible) throw new Error("no primary visible agent found")
             return visible.name
           })

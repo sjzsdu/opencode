@@ -50,6 +50,17 @@ export namespace Command {
   // for some reason zod is inferring `string` for z.promise(z.string()).or(z.string()) so we have to manually override it
   export type Info = Omit<z.infer<typeof Info>, "template"> & { template: Promise<string> | string }
 
+  export type Input = {
+    name: string
+    template: string
+    description?: string
+    agent?: string
+    model?: string
+    subtask?: boolean
+  }
+
+  const registry = new Map<string, Info>()
+
   export function hints(template: string) {
     const result: string[] = []
     const numbered = template.match(/\$\d+/g)
@@ -64,6 +75,37 @@ export namespace Command {
     INIT: "init",
     REVIEW: "review",
   } as const
+
+  function fromSkill(item: Skill.Info): Info {
+    return {
+      name: item.name,
+      description: item.description,
+      source: "skill",
+      get template() {
+        return item.content
+      },
+      hints: [],
+    }
+  }
+
+  export function register(cmd: Input) {
+    if (!cmd.name.trim()) throw new Error("Command name is required")
+    if (!cmd.template) throw new Error("Command template is required")
+    registry.set(cmd.name, {
+      name: cmd.name,
+      description: cmd.description,
+      agent: cmd.agent,
+      model: cmd.model,
+      source: "command",
+      template: cmd.template,
+      subtask: cmd.subtask,
+      hints: hints(cmd.template),
+    })
+  }
+
+  export function unregister(name: string) {
+    registry.delete(name)
+  }
 
   export interface Interface {
     readonly get: (name: string) => Effect.Effect<Info | undefined>
@@ -165,12 +207,23 @@ export namespace Command {
 
       const get = Effect.fn("Command.get")(function* (name: string) {
         const s = yield* InstanceState.get(state)
-        return s.commands[name]
+        const cmd = registry.get(name)
+        if (cmd) return cmd
+        const item = s.commands[name]
+        if (item && item.source !== "skill") return item
+        const skillItem = yield* skill.get(name)
+        if (skillItem) return fromSkill(skillItem)
+        return item
       })
 
       const list = Effect.fn("Command.list")(function* () {
         const s = yield* InstanceState.get(state)
-        return Object.values(s.commands)
+        const all = { ...s.commands, ...Object.fromEntries(registry) }
+        for (const item of yield* skill.all()) {
+          if (all[item.name] && all[item.name].source !== "skill") continue
+          all[item.name] = fromSkill(item)
+        }
+        return Object.values(all)
       })
 
       return Service.of({ get, list })

@@ -1,4 +1,12 @@
-import type { Hooks, PluginInput, Plugin as PluginInstance, PluginModule } from "@opencode-ai/plugin"
+import type {
+  AgentInput,
+  CommandInput,
+  Hooks,
+  PluginInput,
+  Plugin as PluginInstance,
+  PluginModule,
+  SkillInput,
+} from "@opencode-ai/plugin"
 import { Config } from "../config/config"
 import { Bus } from "../bus"
 import { Log } from "../util/log"
@@ -14,8 +22,11 @@ import { Effect, Layer, ServiceMap, Stream } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 import { makeRuntime } from "@/effect/run-service"
 import { errorMessage } from "@/util/error"
+import { Agent } from "@/agent/agent"
 import { PluginLoader } from "./loader"
+import { Command } from "@/command"
 import { parsePluginSpecifier, readPluginId, readV1Plugin, resolvePluginId } from "./shared"
+import { Skill } from "@/skill"
 
 export namespace Plugin {
   const log = Log.create({ service: "plugin" })
@@ -123,6 +134,14 @@ export namespace Plugin {
               return Server.url ?? new URL("http://localhost:4096")
             },
             $: Bun.$,
+            registerAgent: async (agent: AgentInput) => Agent.register(agent),
+            unregisterAgent: async (name: string) => Agent.unregister(name),
+            listAgents: async () => Agent.list(),
+            registerCommand: async (cmd: CommandInput) => Command.register(cmd),
+            unregisterCommand: async (name: string) => Command.unregister(name),
+            listCommands: async () => Command.list(),
+            registerSkill: async (skill: SkillInput) => Skill.register(skill),
+            unregisterSkill: async (name: string) => Skill.unregister(name),
           }
 
           for (const plugin of INTERNAL_PLUGINS) {
