@@ -42,6 +42,14 @@ export const Info = Schema.Struct({
 })
 export type Info = Schema.Schema.Type<typeof Info>
 
+export type Input = {
+  name: string
+  description: string
+  content: string
+}
+
+const registry = new Map<string, Info>()
+
 const Issue = Schema.StructWithRest(
   Schema.Struct({
     message: Schema.String,
@@ -94,6 +102,24 @@ type ScanState = {
   dirs: Set<string>
 }
 
+export function register(skill: Input) {
+  if (!skill.name.trim()) throw new Error("Skill name is required")
+  registry.set(skill.name, {
+    name: skill.name,
+    description: skill.description,
+    location: path.join(Global.Path.data, "plugin", `${skill.name}.md`),
+    content: skill.content,
+  })
+}
+
+export function unregister(name: string) {
+  registry.delete(name)
+}
+
+export function list() {
+  return Array.from(registry.values())
+}
+
 export interface Interface {
   readonly get: (name: string) => Effect.Effect<Info | undefined>
   readonly require: (name: string) => Effect.Effect<Info, NotFoundError>
@@ -119,7 +145,6 @@ const add = Effect.fnUntraced(function* (state: State, match: string, events: Ev
   )
 
   if (!md) return
-
   if (!isSkillFrontmatter(md.data)) return
 
   if (state.skills[md.data.name]) {
@@ -288,7 +313,7 @@ const layer = Layer.effect(
 
     const get = Effect.fn("Skill.get")(function* (name: string) {
       const s = yield* InstanceState.get(state)
-      return s.skills[name]
+      return registry.get(name) ?? s.skills[name]
     })
 
     const require = Effect.fn("Skill.require")(function* (name: string) {
@@ -300,7 +325,7 @@ const layer = Layer.effect(
 
     const all = Effect.fn("Skill.all")(function* () {
       const s = yield* InstanceState.get(state)
-      return Object.values(s.skills)
+      return Object.values({ ...s.skills, ...Object.fromEntries(registry) })
     })
 
     const dirs = Effect.fn("Skill.dirs")(function* () {
@@ -309,7 +334,9 @@ const layer = Layer.effect(
 
     const available = Effect.fn("Skill.available")(function* (agent?: Agent.Info) {
       const s = yield* InstanceState.get(state)
-      const list = Object.values(s.skills).toSorted((a, b) => a.name.localeCompare(b.name))
+      const list = Object.values({ ...s.skills, ...Object.fromEntries(registry) }).toSorted((a, b) =>
+        a.name.localeCompare(b.name),
+      )
       if (!agent) return list
       return list.filter((skill) => Permission.evaluate("skill", skill.name, agent.permission).action !== "deny")
     })

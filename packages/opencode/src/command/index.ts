@@ -10,9 +10,11 @@ import { Skill } from "../skill"
 import PROMPT_INITIALIZE from "./template/initialize.txt"
 import PROMPT_REVIEW from "./template/review.txt"
 import { LegacyEvent } from "@opencode-ai/schema/legacy-event"
+import { listCommands as listRuntimeCommands } from "./runtime"
 
 type State = {
   commands: Record<string, Info>
+  directory: string
 }
 
 export const Event = {
@@ -25,13 +27,21 @@ export const Info = Schema.Struct({
   agent: Schema.optional(Schema.String),
   model: Schema.optional(Schema.String),
   source: Schema.optional(Schema.Literals(["command", "mcp", "skill"])),
-  // Some command templates are lazy promises from MCP prompt resolution.
   template: Schema.Unknown,
   subtask: Schema.optional(Schema.Boolean),
   hints: Schema.Array(Schema.String),
 }).annotate({ identifier: "Command" })
 
 export type Info = Omit<Schema.Schema.Type<typeof Info>, "template"> & { template: Promise<string> | string }
+
+export type Input = {
+  name: string
+  template: string
+  description?: string
+  agent?: string
+  model?: string
+  subtask?: boolean
+}
 
 export function hints(template: string) {
   const result: string[] = []
@@ -47,6 +57,18 @@ export const Default = {
   INIT: "init",
   REVIEW: "review",
 } as const
+
+function fromSkill(item: Skill.Info): Info {
+  return {
+    name: item.name,
+    description: item.description,
+    source: "skill",
+    get template() {
+      return item.content
+    },
+    hints: [],
+  }
+}
 
 export interface Interface {
   readonly get: (name: string) => Effect.Effect<Info | undefined>
@@ -152,6 +174,7 @@ const layer = Layer.effect(
       }
 
       return {
+        directory: ctx.directory,
         commands,
       }
     })
@@ -160,12 +183,23 @@ const layer = Layer.effect(
 
     const get = Effect.fn("Command.get")(function* (name: string) {
       const s = yield* InstanceState.get(state)
-      return s.commands[name]
+      const cmd = listRuntimeCommands(s.directory).find((item) => item.name === name)
+      if (cmd) return cmd
+      const item = s.commands[name]
+      if (item && item.source !== "skill") return item
+      const skillItem = yield* skill.get(name)
+      if (skillItem) return fromSkill(skillItem)
+      return item
     })
 
     const list = Effect.fn("Command.list")(function* () {
       const s = yield* InstanceState.get(state)
-      return Object.values(s.commands)
+      const all = { ...s.commands, ...Object.fromEntries(listRuntimeCommands(s.directory).map((item) => [item.name, item])) }
+      for (const item of yield* skill.all()) {
+        if (all[item.name] && all[item.name].source !== "skill") continue
+        all[item.name] = fromSkill(item)
+      }
+      return Object.values(all)
     })
 
     return Service.of({ get, list })
