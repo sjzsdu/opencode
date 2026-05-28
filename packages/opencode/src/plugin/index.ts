@@ -4,6 +4,8 @@ import type {
   Plugin as PluginInstance,
   PluginModule,
   WorkspaceAdapter as PluginWorkspaceAdapter,
+  SkillInfo,
+  CommandInfo,
 } from "@opencode-ai/plugin"
 import { Config } from "@/config/config"
 import { Bus } from "../bus"
@@ -30,6 +32,8 @@ import { registerAdapter } from "@/control-plane/adapters"
 import type { WorkspaceAdapter } from "@/control-plane/types"
 import { RuntimeFlags } from "@/effect/runtime-flags"
 import { InstallationChannel } from "@opencode-ai/core/installation/version"
+import { registerAgent, unregisterAgent, listAgents } from "../agent/runtime"
+import { registerCommand, unregisterCommand, listCommands } from "../command/runtime"
 
 const log = Log.create({ service: "plugin" })
 
@@ -160,6 +164,38 @@ export const layer = Layer.effect(
           },
           // @ts-expect-error
           $: typeof Bun === "undefined" ? undefined : Bun.$,
+          registerSkill: async (skill) => {
+            const { Skill } = await import("../skill")
+            Skill.register(skill)
+          },
+          unregisterSkill: async (name) => {
+            const { Skill } = await import("../skill")
+            Skill.unregister(name)
+          },
+          listSkills: async () => {
+            const { Skill } = await import("../skill")
+            return Skill.list().filter((item): item is SkillInfo => item.description !== undefined)
+          },
+          registerCommand: async (cmd) => {
+            registerCommand(ctx.directory, cmd)
+          },
+          unregisterCommand: async (name) => {
+            unregisterCommand(ctx.directory, name)
+          },
+          listCommands: async () => {
+            return listCommands(ctx.directory) as CommandInfo[]
+          },
+          registerAgent: (agent) => {
+            registerAgent(ctx.directory, agent)
+            return Promise.resolve()
+          },
+          unregisterAgent: (name) => {
+            unregisterAgent(ctx.directory, name)
+            return Promise.resolve()
+          },
+          listAgents: () => {
+            return Promise.resolve(listAgents(ctx.directory))
+          },
         }
 
         for (const plugin of flags.disableDefaultPlugins ? [] : internalPlugins(flags)) {
@@ -234,12 +270,6 @@ export const layer = Layer.effect(
             },
           }).pipe(
             Effect.catch(() => {
-              // TODO: make proper events for this
-              // bus.publish(Session.Event.Error, {
-              //   error: new NamedError.Unknown({
-              //     message: `Failed to load plugin ${load.spec}: ${message}`,
-              //   }).toObject(),
-              // })
               return Effect.void
             }),
           )

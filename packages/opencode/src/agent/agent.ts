@@ -19,6 +19,7 @@ import { Global } from "@opencode-ai/core/global"
 import path from "path"
 import { Plugin } from "@/plugin"
 import { Skill } from "../skill"
+import { registerAgent as runtimeRegisterAgent, unregisterAgent as runtimeUnregisterAgent, listAgents as runtimeListAgents } from "./runtime"
 import { Effect, Context, Layer, Schema } from "effect"
 import { InstanceState } from "@/effect/instance-state"
 import { RuntimeFlags } from "@/effect/runtime-flags"
@@ -227,7 +228,7 @@ export const layer = Layer.effect(
                   description: `Docs and dependency-source specialist. Use this when you need to inspect external documentation, clone dependency repositories into the managed cache, and research library implementation details without modifying the user's workspace.`,
                   prompt: PROMPT_SCOUT,
                   options: {},
-                  mode: "subagent" as const,
+                  mode: "subagent",
                   native: true,
                 },
               }
@@ -325,32 +326,42 @@ export const layer = Layer.effect(
           )
         }
 
-        const get = Effect.fnUntraced(function* (agent: string) {
-          return agents[agent]
+        const directory = ctx.directory
+
+        const get = Effect.fnUntraced(function* (name: string) {
+          const item = agents[name]
+          if (item) return item
+          const configItem = Object.values(agents).find((item) => item.name === name)
+          if (configItem) return configItem
+          const runtimeItem = runtimeListAgents(directory).find((item) => item.name === name) as Info | undefined
+          if (runtimeItem) return runtimeItem
+          throw new Error(`agent "${name}" not found`)
         })
 
         const list = Effect.fnUntraced(function* () {
           const cfg = yield* config.get()
-          return pipe(
-            agents,
-            values(),
-            sortBy(
-              [(x) => (cfg.default_agent ? x.name === cfg.default_agent : x.name === "build"), "desc"],
-              [(x) => x.name, "asc"],
-            ),
+          const runtimeAgents = runtimeListAgents(directory) as Info[]
+          const configAgents = pipe(agents, values())
+          const seen = new Set(configAgents.map((item) => item.name))
+          const all = [...configAgents, ...runtimeAgents.filter((item) => !seen.has(item.name))]
+          const defaultName = cfg.default_agent ? (yield* get(cfg.default_agent))?.name ?? cfg.default_agent : "build"
+          return sortBy(
+            all,
+            [(item) => item.name === defaultName, "desc"],
+            [(item) => item.name, "asc"],
           )
         })
 
         const defaultInfo = Effect.fnUntraced(function* () {
           const c = yield* config.get()
           if (c.default_agent) {
-            const agent = agents[c.default_agent]
+            const agent = yield* get(c.default_agent)
             if (!agent) throw new Error(`default agent "${c.default_agent}" not found`)
             if (agent.mode === "subagent") throw new Error(`default agent "${c.default_agent}" is a subagent`)
             if (agent.hidden === true) throw new Error(`default agent "${c.default_agent}" is hidden`)
             return agent
           }
-          const visible = Object.values(agents).find((a) => a.mode !== "subagent" && a.hidden !== true)
+          const visible = (yield* list()).find((item) => item.mode !== "subagent" && item.hidden !== true)
           if (!visible) throw new Error("no primary visible agent found")
           return visible
         })
@@ -397,7 +408,6 @@ export const layer = Layer.effect(
         yield* plugin.trigger("experimental.chat.system.transform", { model: resolved }, { system })
         const existing = yield* InstanceState.useEffect(state, (s) => s.list())
 
-        // TODO: clean this up so provider specific logic doesnt bleed over
         const authInfo = yield* auth.get(model.providerID).pipe(Effect.orDie)
         const isOpenaiOauth = model.providerID === "openai" && authInfo?.type === "oauth"
 
@@ -453,6 +463,28 @@ export const layer = Layer.effect(
     })
   }),
 )
+
+export namespace Runtime {
+  export type Input = {
+    name: string
+    description?: string
+    mode?: "subagent" | "primary" | "all"
+    prompt?: string
+    options?: Record<string, unknown>
+  }
+
+  export function register(directory: string, input: Input) {
+    runtimeRegisterAgent(directory, input)
+  }
+
+  export function unregister(directory: string, name: string) {
+    runtimeUnregisterAgent(directory, name)
+  }
+
+  export function list(directory: string): Info[] {
+    return runtimeListAgents(directory) as Info[]
+  }
+}
 
 export const defaultLayer = layer.pipe(
   Layer.provide(Plugin.defaultLayer),

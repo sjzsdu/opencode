@@ -1,45 +1,54 @@
 #!/usr/bin/env bun
 
-import { Script } from "@opencode-ai/script"
 import { $ } from "bun"
 import { fileURLToPath } from "url"
+import path from "path"
 
 const dir = fileURLToPath(new URL("..", import.meta.url))
 process.chdir(dir)
 
-async function published(name: string, version: string) {
-  return (await $`npm view ${name}@${version} version`.nothrow()).exitCode === 0
-}
-
-const originalText = await Bun.file("package.json").text()
-const pkg = JSON.parse(originalText) as {
+const version = Bun.env.VERSION
+const dry = Bun.env.DRY_RUN === "true"
+const pkg = (await Bun.file("package.json").json()) as {
   name: string
   version: string
-  exports: Record<string, unknown>
+  exports: Record<string, string | object>
+  scripts?: Record<string, string>
+  devDependencies?: Record<string, string>
 }
-function transformExports(exports: Record<string, unknown>) {
-  return Object.fromEntries(
-    Object.entries(exports).map(([key, value]) => {
-      if (typeof value === "string") {
-        const file = value.replace("./src/", "./dist/").replace(".ts", "")
-        return [key, { import: file + ".js", types: file + ".d.ts" }]
-      }
-      if (typeof value === "object" && value !== null && !Array.isArray(value)) {
-        return [key, transformExports(value)]
-      }
-      return [key, value]
-    }),
-  )
-}
-if (await published(pkg.name, pkg.version)) {
-  console.log(`already published ${pkg.name}@${pkg.version}`)
-} else {
-  pkg.exports = transformExports(pkg.exports)
-  await Bun.write("package.json", JSON.stringify(pkg, null, 2))
-  try {
-    await $`bun pm pack`
-    await $`npm publish *.tgz --tag ${Script.channel} --access public`
-  } finally {
-    await Bun.write("package.json", originalText)
+const original = JSON.parse(JSON.stringify(pkg))
+
+function transformExports(exports: Record<string, string | object>) {
+  for (const [key, value] of Object.entries(exports)) {
+    if (typeof value === "object" && value !== null) {
+      transformExports(value as Record<string, string | object>)
+      continue
+    }
+    if (typeof value !== "string") continue
+    const file = value.replace("./src/", "./dist/").replace(".ts", "")
+    exports[key] = {
+      import: file + ".js",
+      types: file + ".d.ts",
+    }
   }
+}
+
+await $`bun ./script/build.ts`.cwd(dir)
+
+pkg.name = "sjz-opencode-sdk"
+if (version) pkg.version = version
+delete pkg.scripts
+delete pkg.devDependencies
+transformExports(pkg.exports)
+
+await Bun.write("package.json", JSON.stringify(pkg, null, 2))
+
+try {
+  if (dry) {
+    await $`npm publish --dry-run --access public`.cwd(dir)
+  } else {
+    await $`npm publish --access public`.cwd(dir)
+  }
+} finally {
+  await Bun.write(path.join(dir, "package.json"), JSON.stringify(original, null, 2))
 }
