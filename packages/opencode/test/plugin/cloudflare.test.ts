@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test"
+import type { PluginInput } from "@opencode-ai/plugin"
 import { CloudflareAIGatewayAuthPlugin } from "@/plugin/cloudflare"
 
-const pluginInput = {
+const pluginInput: PluginInput = {
   client: {} as never,
   project: {} as never,
   directory: "",
@@ -11,6 +12,15 @@ const pluginInput = {
   },
   serverUrl: new URL("https://example.com"),
   $: {} as never,
+  registerAgent: async () => {},
+  unregisterAgent: async () => {},
+  listAgents: async () => [],
+  registerCommand: async () => {},
+  unregisterCommand: async () => {},
+  listCommands: async () => [],
+  registerSkill: async () => {},
+  unregisterSkill: async () => {},
+  listSkills: async () => [],
 }
 
 function makeHookInput(overrides: { providerID?: string; apiId?: string; reasoning?: boolean }) {

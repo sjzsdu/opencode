@@ -1,4 +1,5 @@
-import { describe, expect, test } from "bun:test"
+import type { PluginInput } from "@opencode-ai/plugin"
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test"
 import {
   CodexAuthPlugin,
   parseJwtClaims,
@@ -156,6 +157,39 @@ describe("plugin.codex", () => {
     })
     let refreshRequests = 0
     const apiRequests: { authorization: string | null; accountId: string | null }[] = []
+    const input = {
+      client: {
+        auth: {
+          async set(update: { body: { refresh: string; access: string; expires: number; accountId?: string } }) {
+            authUpdates.push(update)
+            auth = {
+              type: "oauth",
+              refresh: update.body.refresh,
+              access: update.body.access,
+              expires: update.body.expires,
+              ...(update.body.accountId && { accountId: update.body.accountId }),
+            }
+          },
+        },
+      } as never,
+      project: {} as never,
+      directory: "",
+      worktree: "",
+      experimental_workspace: {
+        register() {},
+      },
+      serverUrl: new URL("https://example.com"),
+      $: {} as never,
+      registerAgent: async () => {},
+      unregisterAgent: async () => {},
+      listAgents: async () => [],
+      registerCommand: async () => {},
+      unregisterCommand: async () => {},
+      listCommands: async () => [],
+      registerSkill: async () => {},
+      unregisterSkill: async () => {},
+      listSkills: async () => [],
+    } satisfies PluginInput
 
     using server = Bun.serve({
       port: 0,
@@ -186,30 +220,7 @@ describe("plugin.codex", () => {
     })
 
     const hooks = await CodexAuthPlugin(
-      {
-        client: {
-          auth: {
-            async set(input: { body: { refresh: string; access: string; expires: number; accountId?: string } }) {
-              authUpdates.push(input)
-              auth = {
-                type: "oauth",
-                refresh: input.body.refresh,
-                access: input.body.access,
-                expires: input.body.expires,
-                ...(input.body.accountId && { accountId: input.body.accountId }),
-              }
-            },
-          },
-        } as never,
-        project: {} as never,
-        directory: "",
-        worktree: "",
-        experimental_workspace: {
-          register() {},
-        },
-        serverUrl: new URL("https://example.com"),
-        $: {} as never,
-      },
+      input,
       {
         issuer: server.url.origin,
         codexApiEndpoint: new URL("/backend-api/codex/responses", server.url).toString(),

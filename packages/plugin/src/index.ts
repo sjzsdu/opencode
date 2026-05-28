@@ -53,6 +53,42 @@ export type WorkspaceAdapter = {
   target(config: WorkspaceInfo): WorkspaceTarget | Promise<WorkspaceTarget>
 }
 
+export type AgentInput = {
+  name: string
+  description?: string
+  mode?: "subagent" | "primary" | "all"
+  prompt?: string
+  options?: Record<string, unknown>
+}
+
+export type CommandInput = {
+  name: string
+  template: string
+  description?: string
+  agent?: string
+  model?: string
+  subtask?: boolean
+}
+
+export type CommandInfo = Omit<CommandInput, "template"> & {
+  source?: "command" | "mcp" | "skill"
+  template: string | Promise<string>
+  hints: string[]
+}
+
+export type SkillInput = {
+  name: string
+  description: string
+  content: string
+}
+
+export type SkillInfo = {
+  name: string
+  description: string
+  location: string
+  content: string
+}
+
 export type PluginInput = {
   client: ReturnType<typeof createOpencodeClient>
   project: Project
@@ -63,6 +99,15 @@ export type PluginInput = {
   }
   serverUrl: URL
   $: BunShell
+  registerAgent: (agent: AgentInput) => Promise<void>
+  unregisterAgent: (name: string) => Promise<void>
+  listAgents: () => Promise<import("@opencode-ai/sdk/v2").Agent[]>
+  registerCommand: (cmd: CommandInput) => Promise<void>
+  unregisterCommand: (name: string) => Promise<void>
+  listCommands: () => Promise<CommandInfo[]>
+  registerSkill: (skill: SkillInput) => Promise<void>
+  unregisterSkill: (name: string) => Promise<void>
+  listSkills: () => Promise<SkillInfo[]>
 }
 
 export type PluginOptions = Record<string, unknown>
